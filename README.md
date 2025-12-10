@@ -6,10 +6,10 @@
     list-style: none;
     margin-top: 0px;
     ">
-        <li><strong>&gt; LAURENCE</strong> Maxence TD1 - TPB</li>
-        <li><strong>&gt; CÉSAIRE</strong> Lilian TD1 - TPB</li>
-        <li><strong>&gt; KHELIFI</strong> Neda TD2 - TPC</li>
-        <li><strong>&gt; LEVITRE</strong> Mathys TD1 - TPB</li>
+        <strong>&gt; LAURENCE</strong> Maxence TD1 - TPB<br>
+        <strong>&gt; CÉSAIRE</strong> Lilian TD1 - TPB<br>
+        <strong>&gt; KHELIFI</strong> Neda TD2 - TPC<br>
+        <strong>&gt; LEVITRE</strong> Mathys TD1 - TPB<br>
     </ul>
     <img alt="Log IUTLCO" src="./images/iutlittoral-logo.jpg" height="150px">
     <img alt="Logo BUT Info" src="./images/infocalais-logo.jpeg"
