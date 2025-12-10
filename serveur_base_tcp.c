@@ -113,133 +113,27 @@ int main(int argc, char *argv[])
     for (int i = 0; i < longueur; i++)
         mot_cache[i] = '_';
     mot_cache[longueur] = '\0';
-
-    // boucle d’attente de connexion : en théorie, un serveur attend indéfiniment !
-    // while (1)
-    // {
-    //     memset(messageRecu, 'a', LG_MESSAGE * sizeof(char));
-    //     printf("Attente d’une demande de connexion (quitter avec Ctrl-C)\n\n");
-
-    //     // On réception les données du client (cf. protocole)
-    //     // lus = read(socketDialogue, messageRecu, LG_MESSAGE*sizeof(char)); // ici appel bloquant
-    //     lus = recv(socketDialogue, messageRecu, LG_MESSAGE * sizeof(char), 0); // ici appel bloquant
-    //     switch (lus)
-    //     {
-    //     case -1: /* une erreur ! */
-    //         perror("read");
-    //         close(socketDialogue);
-    //         exit(-5);
-    //     case 0: /* la socket est fermée */
-    //         fprintf(stderr, "La socket a été fermée par le client !\n\n");
-    //         close(socketDialogue);
-    //         return 0;
-    //     default: /* réception de n octets */
-    //         printf("Message reçu : %s (%d octets)\n\n", messageRecu, lus);
-
-    //         if (!partie_finie)
-    //         {
-    //             char lettre = messageRecu[0]; // on suppose que le client envoie 1 lettre
-    //             int correcte = 0;
-    //             int deja_trouve = 0;
-
-    //             // Vérifier si la lettre est dans le mot
-    //             for (int i = 0; i < longueur; i++)
-    //             {
-    //                 if (mot[i] == lettre)
-    //                 {
-    //                     if (lettres_trouvees[i])
-    //                     {
-    //                         deja_trouve = 1;
-    //                     }
-    //                     else
-    //                     {
-    //                         lettres_trouvees[i] = 1;
-    //                         mot_cache[i] = lettre;
-    //                         correcte = 1;
-    //                     }
-    //                 }
-    //             }
-
-    //             // Préparer le message de réponse
-    //             char reponse[256];
-    //             if (deja_trouve)
-    //             {
-    //                 sprintf(reponse, "Lettre déjà choisie ! Mot actuel : %s", mot_cache);
-    //             }
-    //             else if (correcte)
-    //             {
-    //                 sprintf(reponse, "Correct ! Mot actuel : %s", mot_cache);
-    //             }
-    //             else
-    //             {
-    //                 essais_restants--;
-    //                 sprintf(reponse, "Incorrect ! Essais restants : %d. Mot actuel : %s", essais_restants, mot_cache);
-    //             }
-
-    //             // Vérifier victoire
-    //             int gagne = 1;
-    //             for (int i = 0; i < longueur; i++)
-    //             {
-    //                 if (!lettres_trouvees[i])
-    //                     gagne = 0;
-    //             }
-    //             if (gagne)
-    //             {
-    //                 sprintf(reponse, "Félicitations ! Vous avez trouvé le mot : %s", mot);
-    //                 partie_finie = 1;
-    //             }
-
-    //             // Vérifier défaite
-    //             if (essais_restants <= 0)
-    //             {
-    //                 sprintf(reponse, "Perdu ! Le mot était : %s", mot);
-    //                 partie_finie = 1;
-    //             }
-
-    //             // Envoyer la réponse au client
-    //             int nbEnvoyes = send(socketDialogue, reponse, strlen(reponse) + 1, 0);
-    //             if (nbEnvoyes <= 0)
-    //             {
-    //                 perror("send");
-    //                 close(socketDialogue);
-    //                 exit(-6);
-    //             }
-    //             printf("Réponse envoyée au client (%d octets)\n", nbEnvoyes);
-    //         }
-
-    //         if (nbEnvoyes <= 0)
-    //         {
-    //             perror("send");
-    //             close(socketDialogue);
-    //             exit(-6);
-    //         }
-    //         else
-    //         {
-    //             printf("Réponse envoyée au client (%d octets)\n\n", nbEnvoyes);
-    //         }
-    //         break;
-    //     }
-    // }
-
     while (1)
     {
         memset(messageRecu, 0, LG_MESSAGE);
-        printf("Attente d’une demande de connexion (quitter avec Ctrl-C)\n\n");
+        printf("Attente d’une lettre du client (quitter avec Ctrl-C)\n\n");
 
         lus = recv(socketDialogue, messageRecu, LG_MESSAGE, 0);
         if (lus <= 0)
-        { /* gérer erreur ou fermeture */
+        {
+            printf("Le client a fermé la connexion.\n");
+            break; // sortir de la boucle si le client se déconnecte
         }
 
         printf("Message reçu : %s (%d octets)\n\n", messageRecu, lus);
 
         if (!partie_finie)
         {
-            char lettre = messageRecu[0]; // le caractère reçu
+            char lettre = messageRecu[0]; // lettre envoyée par le client
             int correcte = 0;
             int deja_trouve = 0;
 
-            // Vérifier la lettre
+            // Vérifier si la lettre est dans le mot
             for (int i = 0; i < longueur; i++)
             {
                 if (mot[i] == lettre)
@@ -255,46 +149,75 @@ int main(int argc, char *argv[])
                 }
             }
 
-            // Préparer le message
-            char reponse[256];
+            // Décrémenter essais si incorrect
+            if (!correcte && !deja_trouve)
+                essais_restants--;
+
+            int nb_fautes = MAX_ESSAIS - essais_restants;
+
+            // Construire le message combiné
+            char message_a_envoyer[512];
+
             if (deja_trouve)
-                sprintf(reponse, "Lettre déjà choisie ! Mot actuel : %s", mot_cache);
+            {
+                snprintf(message_a_envoyer, sizeof(message_a_envoyer),
+                         "Lettre déjà choisie ! Mot actuel : %s | Fautes : %d", mot_cache, nb_fautes);
+            }
             else if (correcte)
-                sprintf(reponse, "Correct ! Mot actuel : %s", mot_cache);
+            {
+                snprintf(message_a_envoyer, sizeof(message_a_envoyer),
+                         "Correct ! Mot actuel : %s | Fautes : %d", mot_cache, nb_fautes);
+            }
             else
             {
-                essais_restants--;
-                sprintf(reponse, "Incorrect ! Essais restants : %d. Mot actuel : %s", essais_restants, mot_cache);
+                snprintf(message_a_envoyer, sizeof(message_a_envoyer),
+                         "Incorrect ! Essais restants : %d. Mot actuel : %s | Fautes : %d",
+                         essais_restants, mot_cache, nb_fautes);
             }
 
-            // Vérifier victoire ou défaite
+            // Vérifier victoire
             int gagne = 1;
             for (int i = 0; i < longueur; i++)
                 if (!lettres_trouvees[i])
                     gagne = 0;
+
             if (gagne)
             {
-                sprintf(reponse, "Félicitations ! Vous avez trouvé le mot : %s", mot);
-                partie_finie = 1;
-            }
-            if (essais_restants <= 0)
-            {
-                sprintf(reponse, "Perdu ! Le mot était : %s", mot);
+                snprintf(message_a_envoyer, sizeof(message_a_envoyer),
+                         "Félicitations ! Vous avez trouvé le mot : %s | Fautes : %d", mot, nb_fautes);
                 partie_finie = 1;
             }
 
-            // Envoyer la réponse
-            int nbEnvoyes = send(socketDialogue, reponse, strlen(reponse) + 1, 0);
+            // Vérifier défaite
+            if (essais_restants <= 0)
+            {
+                snprintf(message_a_envoyer, sizeof(message_a_envoyer),
+                         "Perdu ! Le mot était : %s | Fautes : %d", mot, nb_fautes);
+                partie_finie = 1;
+            }
+
+            // Envoyer le message combiné
+            int nbEnvoyes = send(socketDialogue, message_a_envoyer, strlen(message_a_envoyer) + 1, 0);
             if (nbEnvoyes <= 0)
             {
                 perror("send");
                 close(socketDialogue);
                 exit(-6);
             }
+
             printf("Réponse envoyée au client (%d octets)\n", nbEnvoyes);
+
+            if(partie_finie)
+            {
+                printf("Partie terminée. Fermeture de la connexion.\n");
+                break; // sortir de la boucle si la partie est finie
+            }
         }
+        
     }
+    close(socketDialogue);
     // On ferme la ressource avant de quitter
     close(socketEcoute);
+
     return 0;
 }
