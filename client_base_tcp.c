@@ -11,105 +11,134 @@
 
 int main(int argc, char *argv[])
 {
-    int descripteurSocket;
-    struct sockaddr_in sockaddrDistant;
-    socklen_t longueurAdresse;
+    int sock;
+    struct sockaddr_in serv;
+    socklen_t len;
 
-    char buffer[10] = "";
-    int nb;
-
-    char ip_dest[16];
-    int port_dest;
-
-    char reponse[512]; // augmenter taille pour recevoir tout le message
+    char buffer[32];
+    char reponse[512];
     int lus;
 
-    if (argc > 1)
-    {
-        strncpy(ip_dest, argv[1], 16);
-        sscanf(argv[2], "%d", &port_dest);
-    }
-    else
+    char ip[16];
+    int port;
+
+    if (argc < 3)
     {
         printf("USAGE : %s ip port\n", argv[0]);
-        exit(-1);
+        exit(1);
     }
 
-    descripteurSocket = socket(AF_INET, SOCK_STREAM, 0);
-    if (descripteurSocket < 0)
+    strncpy(ip, argv[1], 15);
+    ip[15] = '\0';
+    port = atoi(argv[2]);
+
+    // ------------------------------------------------------
+    // Connexion serveur
+    // ------------------------------------------------------
+    sock = socket(AF_INET, SOCK_STREAM, 0);
+    if (sock < 0)
     {
-        perror("Erreur en création de la socket...");
-        exit(-1);
+        perror("socket");
+        exit(1);
     }
-    printf("Socket créée! (%d)\n", descripteurSocket);
 
-    longueurAdresse = sizeof(sockaddrDistant);
-    memset(&sockaddrDistant, 0x00, longueurAdresse);
-    sockaddrDistant.sin_family = AF_INET;
-    sockaddrDistant.sin_port = htons(port_dest);
-    inet_aton(ip_dest, &sockaddrDistant.sin_addr);
+    len = sizeof(serv);
+    memset(&serv, 0, len);
+    serv.sin_family = AF_INET;
+    serv.sin_port = htons(port);
+    inet_aton(ip, &serv.sin_addr);
 
-    if ((connect(descripteurSocket, (struct sockaddr *)&sockaddrDistant, longueurAdresse)) == -1)
+    if (connect(sock, (struct sockaddr *)&serv, len) < 0)
     {
-        perror("Erreur de connection avec le serveur distant...");
-        close(descripteurSocket);
-        exit(-2);
+        perror("connect");
+        close(sock);
+        exit(2);
     }
-    printf("Connexion au serveur %s:%d réussie!\n", ip_dest, port_dest);
+    printf("Connexion au serveur %s:%d réussie !\n\n", ip, port);
 
-    while (1)
+    // ======================================================
+    //   BOUCLE PRINCIPALE DU JEU
+    // ======================================================
+    int quitter = 0;
+
+    while (!quitter)
     {
-        printf("Entrer une lettre ('.' pour quitter) : ");
-        scanf(" %c", &buffer[0]);
-        buffer[1] = '\0';
 
-        if (buffer[0] == '.')
+        do
         {
-            printf("Déconnexion volontaire du client...\n");
+            printf("Tapez \"start x\" pour commencer ou \".\" pour quitter : ");
+            fgets(buffer, sizeof(buffer), stdin);
+
+            // enlever le \n en fin
+            buffer[strcspn(buffer, "\n")] = 0;
+
+            if (strcmp(buffer, ".") == 0)
+            {
+                quitter = 1;
+                break;
+            }
+
+            if (strcmp(buffer, "start x") == 0)
+            {
+                break; // buffer contient maintenant "start x"
+            }
+
+            printf("Commande invalide.\n");
+
+        } while (1);
+
+        if (quitter)
             break;
-        }
 
-        nb = send(descripteurSocket, buffer, strlen(buffer) + 1, 0);
-        if (nb <= 0)
-        {
-            perror("Erreur en écriture...");
-            close(descripteurSocket);
-            exit(-3);
-        }
+        printf("\n--- Nouvelle partie ! ---\n");
 
-        lus = recv(descripteurSocket, reponse, sizeof(reponse) - 1, 0);
-        if (lus > 0)
+        // --------------------------------------------------
+        // Boucle d'une partie
+        // --------------------------------------------------
+        while (1)
         {
+            printf("Entrer une lettre ('.' pour quitter) : ");
+            scanf("%31s", buffer);
+
+            if (strcmp(buffer, ".") == 0)
+            {
+                quitter = 1;
+                break;
+            }
+
+            // envoyer la lettre
+            send(sock, buffer, strlen(buffer) + 1, 0);
+
+            // recevoir la réponse
+            lus = recv(sock, reponse, sizeof(reponse) - 1, 0);
+            if (lus <= 0)
+            {
+                printf("Le serveur a fermé la connexion.\n");
+                quitter = 1;
+                break;
+            }
+
             reponse[lus] = '\0';
             printf("%s\n", reponse);
 
-            int nb_fautes = 0;
+            // dessiner pendu
+            int fautes = 0;
             char *ptr = strstr(reponse, "Fautes : ");
-            if (ptr != NULL)
+            if (ptr)
+                sscanf(ptr, "Fautes : %d", &fautes);
+            draw_pendu(fautes, 6);
+
+            // Fin de partie ?
+            if (strstr(reponse, "Félicitations") || strstr(reponse, "Perdu"))
             {
-                sscanf(ptr, "Fautes : %d", &nb_fautes);
+                printf("\nVoulez-vous rejouer ? (start x) ou quitter (.)\n");
+                break; // revenir au menu principal
             }
+        } // fin boucle partie
 
-            draw_pendu(nb_fautes, 5);
+    } // fin boucle principale
 
-            if (strstr(reponse, "Félicitations !") || strstr(reponse, "Perdu !"))
-                break;
-        }
-        else if (lus == 0)
-        {
-            printf("Le serveur a fermé la connexion.\n");
-            break;
-        }
-        else
-        {
-            perror("Erreur recv");
-            close(descripteurSocket);
-            exit(-4);
-        }
-    }
-
-    printf("Fermeture du programme\n");
-    close(descripteurSocket);
-
+    printf("Déconnexion...\n");
+    close(sock);
     return 0;
 }

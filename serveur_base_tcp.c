@@ -79,7 +79,6 @@ int main(int argc, char *argv[])
     {
         memset(messageRecu, 0, LG_MESSAGE);
 
-        // Réception de la lettre du client
         int lus = recv(socketDialogue, messageRecu, LG_MESSAGE, 0);
         if (lus <= 0)
         {
@@ -87,26 +86,45 @@ int main(int argc, char *argv[])
             break;
         }
 
-        printf("Lettre reçue : %c\n", messageRecu[0]);
+        printf("Message reçu : %s\n", messageRecu);
 
-        // Traiter la lettre et générer le message
-        process_letter(&game, messageRecu[0], message_a_envoyer, sizeof(message_a_envoyer));
-
-        // Envoyer le message au client
-        int nbEnvoyes = send(socketDialogue, message_a_envoyer, strlen(message_a_envoyer) + 1, 0);
-        if (nbEnvoyes <= 0)
+        // Quitter la connexion
+        if (strcmp(messageRecu, ".") == 0)
         {
-            perror("send");
+            printf("Client demande à quitter.\n");
             break;
         }
 
-        printf("Réponse envoyée au client (%d octets)\n", nbEnvoyes);
+        // Nouvelle partie
+        if (strcmp(messageRecu, "start x") == 0)
+        {
+            printf("Nouvelle partie demandée.\n");
 
+            game.mot = "bonjour";
+            game.longueur = strlen(game.mot);
+            game.essais_restants = MAX_ESSAIS;
+            game.partie_finie = 0; // ⚠ impératif
+            memset(game.lettres_trouvees, 0, sizeof(game.lettres_trouvees));
+            init_word(&game);
+
+            snprintf(message_a_envoyer, sizeof(message_a_envoyer),
+                     "--- Nouvelle partie ! ---\nMot : %s", game.mot_cache);
+            send(socketDialogue, message_a_envoyer, strlen(message_a_envoyer) + 1, 0);
+            continue;
+        }
+
+        // Si la partie est finie et que le client n'a pas demandé de nouvelle partie
         if (game.partie_finie)
         {
-            printf("Partie terminée. Fermeture de la connexion.\n");
-            break;
+            snprintf(message_a_envoyer, sizeof(message_a_envoyer),
+                     "Partie terminée. Tapez 'start x' pour recommencer ou '.' pour quitter.");
+            send(socketDialogue, message_a_envoyer, strlen(message_a_envoyer) + 1, 0);
+            continue;
         }
+
+        // Traitement d'une lettre normale
+        process_letter(&game, messageRecu[0], message_a_envoyer, sizeof(message_a_envoyer));
+        send(socketDialogue, message_a_envoyer, strlen(message_a_envoyer) + 1, 0);
     }
 
     close(socketDialogue);
