@@ -1,5 +1,5 @@
 
-# SAE_Socket - Version 0 Béta
+# SAE_Socket - Version 0 stable
 <header>
     <p style= "margin-bottom: 0px">Membres :</p>
     <ul style="
