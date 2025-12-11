@@ -19,12 +19,12 @@
 > ## 1. Utilisation
 **> Compilation du serveur**
 ```bash
-gcc ./serveur_base_tcp.c -o serveur_base_tcp
+gcc serveur_base_tcp.c game_pendu.c -o serveur
 ```
 
 **> Compilation du client**
 ```bash
-gcc ./client_base_tcp.c -o client_base_tcp
+gcc client_base_tcp.c pendu_ascii.c -o client
 ```
 
 > ## Règles du jeu 
