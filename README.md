@@ -1,31 +1,29 @@
+# SAE_Socket - Version base
 
-# SAE_Socket - Version 0 stable
-<header>
-    <p style= "margin-bottom: 0px">Membres :</p>
-    <ul style="
-    list-style: none;
-    margin-top: 0px;
-    ">
-        <strong>&gt; LAURENCE</strong> Maxence TD1 - TPB<br>
-        <strong>&gt; CÉSAIRE</strong> Lilian TD1 - TPB<br>
-        <strong>&gt; KHELIFI</strong> Neda TD2 - TPC<br>
-        <strong>&gt; LEVITRE</strong> Mathys TD1 - TPB<br>
-    </ul>
-    <img alt="Log IUTLCO" src="./images/iutlittoral-logo.jpg" height="150px">
-    <img alt="Logo BUT Info" src="./images/infocalais-logo.jpeg"
-    height="150px">
-</header>
+Membres :
 
-> ## 1. Utilisation
-**> Compilation du serveur**
+- **LAURENCE** Maxence TD1 - TPB
+- **CÉSAIRE** Lilian TD1 - TPB 
+- **KHELIFI** Neda TD2 - TPC 
+- **LEVITRE** Mathys TD1 - TPB
+
+<img alt="logo iut" src="./images/iutlittoral-logo.jpg" height="150px">
+<img alt="logo but info" src="./images/infocalais-logo.jpeg" height="150px">
+
+
+## Utilisation
+**Compilation et exécution du serveur**
 ```bash
 gcc serveur_base_tcp.c game_pendu.c -o serveur
+./serveur
 ```
 
-**> Compilation du client**
+**Compilation et exécution du client**
 ```bash
 gcc client_base_tcp.c pendu_ascii.c -o client
+./client
 ```
 
-> ## Règles du jeu 
-<img src="./images/image.png" alt="Visuel du jeu du pendu" width="50%">
+## Règles du jeu 
+
+Voir sur [wikipedia](https://fr.wikipedia.org/wiki/Pendu_(jeu)) 
