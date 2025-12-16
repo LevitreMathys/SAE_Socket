@@ -4,6 +4,7 @@
 #include <unistd.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
+#include "pendu_ascii.h"
 #include "game_pendu.h"
 
 #define PORT 5000
@@ -36,6 +37,8 @@ int main()
         exit(-6);
     }
 
+    draw_logo();
+
     printf("Connexion au serveur établie.\n");
     printf("Combien de lettres contient le mot à deviner ?\nNombre de lettres : ");
     fgets(buffer, sizeof(buffer), stdin);
@@ -57,26 +60,34 @@ int main()
             buffer[n] = '\0';
             printf("Lettre proposée : %s\n", buffer);
         }
-        printf("Cette lettre est-elle dans le mot ? (o/n) : ");
-        fgets(buffer, sizeof(buffer), stdin);
-        buffer[strcspn(buffer, "\n")] = 0;
-        if (buffer[0] != 'o' && buffer[0] != 'n')
+        do
         {
-            printf("Réponse invalide. Veuillez entrer 'o' pour oui ou 'n' pour non.\n");
-            continue;
+            printf("Cette lettre est-elle dans le mot ? (o/n) : ");
+            fgets(buffer, sizeof(buffer), stdin);
+            buffer[strcspn(buffer, "\n")] = 0;
+        } while (strcmp(buffer, "o") != 0 && strcmp(buffer, "n") != 0);
+
+        if (buffer[0] == 'o')
+        {
+            // Demander les positions
+            char positions[255];
+            printf("À quelles positions apparaît cette lettre ? (séparées par des espaces) : ");
+            fgets(positions, sizeof(positions), stdin);
+            positions[strcspn(positions, "\n")] = 0;
+
+            // Envoyer les positions au serveur
+            if (send(socketClient, positions, strlen(positions) + 1, 0) < 0)
+            {
+                perror("send");
+                close(socketClient);
+                return 0;
+            }
         }
         else
         {
-            if (buffer[0] == 'o')
-            {
-                printf("Combien de fois cette lettre apparaît-elle dans le mot ? ");
-                fgets(buffer, sizeof(buffer), stdin);
-                buffer[strcspn(buffer, "\n")] = 0;
-            }
-            else
-            {
-                printf("Lettre refusée.\n");
-            }
+            // Si la lettre n'est pas dans le mot, envoyer une chaîne vide
+            char vide[] = "";
+            send(socketClient, vide, strlen(vide) + 1, 0);
         }
 
     } while (buffer[0] != '.');
