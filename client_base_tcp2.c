@@ -5,6 +5,8 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 
+#include "pendu_ascii.h"
+
 #define PORT 5000
 
 int main()
@@ -34,6 +36,8 @@ int main()
         perror("connect");
         exit(-6);
     }
+
+    draw_logo();
 
     do
     {
