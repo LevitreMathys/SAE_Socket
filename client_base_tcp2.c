@@ -93,7 +93,7 @@ int main()
             {
                 char message_erreur[255];
                 sscanf(buffer, "E:%[^\n]", message_erreur);
-                printf("\n⚠️  ERREUR : %s\n\n", message_erreur);
+                printf("\n ERREUR : %s\n\n", message_erreur);
                 // Ne pas marquer comme partie_finie, continuer la boucle
             }
             else if (buffer[0] == 'V')
@@ -102,7 +102,7 @@ int main()
                 sscanf(buffer, "V:%[^\n]", mot_final);
                 
                 printf("\n=================================\n");
-                printf("🎉 VICTOIRE ! Vous avez trouvé le mot !\n");
+                printf("VICTOIRE ! Vous avez trouvé le mot !\n");
                 printf("Le mot était : %s\n", mot_final);
                 printf("=================================\n");
                 partie_finie = 1;
@@ -115,7 +115,7 @@ int main()
                 
                 draw_pendu(ERREURS_MAX, strlen(mot_final));
                 printf("\n=================================\n");
-                printf("💀 DÉFAITE ! Vous avez été pendu !\n");
+                printf("DÉFAITE ! Vous avez été pendu !\n");
                 printf("Le mot était : %s\n", mot_final);
                 printf("=================================\n");
                 partie_finie = 1;
@@ -143,11 +143,11 @@ int main()
                         lettre_valide = 1;
                         send(socketClient, buffer, strlen(buffer)+1, 0);
                     } else if (strlen(buffer) == 1 && isdigit(buffer[0])) {
-                        printf("❌ '%s' n'est pas une lettre ! Entrez une lettre (a-z).\n\n", buffer);
+                        printf("'%s' n'est pas une lettre ! Entrez une lettre (a-z).\n\n", buffer);
                     } else if (strlen(buffer) > 1) {
-                        printf("❌ Veuillez entrer UNE SEULE lettre.\n\n");
+                        printf("Veuillez entrer UNE SEULE lettre.\n\n");
                     } else {
-                        printf("❌ Entrée invalide. Veuillez entrer une lettre.\n\n");
+                        printf("Entrée invalide. Veuillez entrer une lettre.\n\n");
                     }
                 }
             }
