@@ -1,9 +1,11 @@
+//client_base_tcp2.c - VERSION AMÉLIORÉE
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
+#include <ctype.h>
 #include "pendu_ascii.h"
 
 #define PORT 5000
@@ -11,7 +13,7 @@
 
 int main()
 {
-    while (1) // boucle pour rejouer
+    while (1)
     {
         int socketClient;
         struct sockaddr_in adresse;
@@ -20,6 +22,7 @@ int main()
         int nb_fautes = 0;
         int partie_finie = 0;
         char mot_courant[255] = "";
+        char lettres_utilisees[255] = "";  // NOUVEAU : stocker les lettres utilisées
 
         socketClient = socket(AF_INET, SOCK_STREAM, 0);
         if (socketClient < 0) { perror("socket"); exit(-4); }
@@ -52,15 +55,27 @@ int main()
             if (n <= 0) break;
             buffer[n] = '\0';
 
-            if (buffer[0] == 'P') // Format: P:nb_fautes:mot_cache
+            // MODIFIÉ : Parser avec lettres utilisées (Format: P:nb_fautes:mot_cache:lettres)
+            if (buffer[0] == 'P')
             {
-                sscanf(buffer, "P:%d:%[^\n]", &nb_fautes, mot_courant);
+                char temp_lettres[255] = "";
+                int parsed = sscanf(buffer, "P:%d:%[^:]:%[^\n]", &nb_fautes, mot_courant, temp_lettres);
+                
+                if (parsed >= 3) {
+                    strcpy(lettres_utilisees, temp_lettres);
+                }
                 
                 draw_pendu(nb_fautes, strlen(mot_courant));
                 printf("Mot à deviner : %s\n", mot_courant);
-                printf("Nombre de fautes : %d/%d\n\n", nb_fautes, ERREURS_MAX);
+                printf("Nombre de fautes : %d/%d\n", nb_fautes, ERREURS_MAX);
                 
-                // Vérifier si le mot est complet (sans underscore)
+                // NOUVEAU : Afficher lettres utilisées
+                if (strlen(lettres_utilisees) > 0) {
+                    printf("Lettres déjà utilisées : %s\n", lettres_utilisees);
+                }
+                printf("\n");
+                
+                // Vérifier si le mot est complet
                 int complet = 1;
                 for (int i = 0; mot_courant[i]; i++) {
                     if (mot_courant[i] == '_') {
@@ -73,7 +88,15 @@ int main()
                     continue;
                 }
             }
-            else if (buffer[0] == 'V') // Format: V:mot_complet
+            // NOUVEAU : Gérer les messages d'erreur
+            else if (buffer[0] == 'E')
+            {
+                char message_erreur[255];
+                sscanf(buffer, "E:%[^\n]", message_erreur);
+                printf("\n⚠️  ERREUR : %s\n\n", message_erreur);
+                // Ne pas marquer comme partie_finie, continuer la boucle
+            }
+            else if (buffer[0] == 'V')
             { 
                 char mot_final[255];
                 sscanf(buffer, "V:%[^\n]", mot_final);
@@ -85,7 +108,7 @@ int main()
                 partie_finie = 1;
                 continue;
             }
-            else if (buffer[0] == 'D') // Format: D:mot_complet
+            else if (buffer[0] == 'D')
             { 
                 char mot_final[255];
                 sscanf(buffer, "D:%[^\n]", mot_final);
@@ -101,16 +124,32 @@ int main()
 
             if (!partie_finie)
             {
-                printf("Entrer une lettre ('.' pour quitter) : ");
-                fgets(buffer, sizeof(buffer), stdin);
-                buffer[strcspn(buffer,"\n")] = 0;
+                // MODIFIÉ : Validation de la saisie
+                char lettre_valide = 0;
                 
-                if (strcmp(buffer,".") == 0) {
-                    send(socketClient, buffer, strlen(buffer)+1, 0);
-                    break;
+                while (!lettre_valide) {
+                    printf("Entrer une lettre ('.' pour quitter) : ");
+                    fgets(buffer, sizeof(buffer), stdin);
+                    buffer[strcspn(buffer,"\n")] = 0;
+                    
+                    if (strcmp(buffer,".") == 0) {
+                        send(socketClient, buffer, strlen(buffer)+1, 0);
+                        partie_finie = 1;
+                        break;
+                    }
+                    
+                    // NOUVEAU : Vérifier que c'est une lettre
+                    if (strlen(buffer) == 1 && isalpha(buffer[0])) {
+                        lettre_valide = 1;
+                        send(socketClient, buffer, strlen(buffer)+1, 0);
+                    } else if (strlen(buffer) == 1 && isdigit(buffer[0])) {
+                        printf("❌ '%s' n'est pas une lettre ! Entrez une lettre (a-z).\n\n", buffer);
+                    } else if (strlen(buffer) > 1) {
+                        printf("❌ Veuillez entrer UNE SEULE lettre.\n\n");
+                    } else {
+                        printf("❌ Entrée invalide. Veuillez entrer une lettre.\n\n");
+                    }
                 }
-                
-                send(socketClient, buffer, strlen(buffer)+1, 0);
             }
         }
 
