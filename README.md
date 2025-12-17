@@ -20,9 +20,9 @@ gcc PN_serveur_v3.c game_pendu.c -o serveur.out
 
 **Compilation et exécution du client**
 ```bash
-gcc client_base_tcp1.c pendu_ascii.c -o client1.out
+gcc PN_client1_v3.c pendu_ascii.c -o client1.out
 ./client1.out
-gcc client_base_tcp2.c pendu_ascii.c -o client2.out
+gcc PN_client2_v3.c pendu_ascii.c -o client2.out
 ./client2.out
 ```
 
