@@ -134,7 +134,7 @@ int main()
                     
                     printf("À quelles positions apparaît cette lettre ?\n");
                     printf("(numéros séparés par des espaces, ex: 1 3 5)\n");
-                    printf("⚠️  IMPORTANT : Le mot fait %d lettres, donnez des positions entre 1 et %d\n", 
+                    printf("IMPORTANT : Le mot fait %d lettres, donnez des positions entre 1 et %d\n", 
                            nb_lettres, nb_lettres);
                     printf("Positions : ");
                     fgets(positions, sizeof(positions), stdin);
@@ -152,7 +152,7 @@ int main()
                             strcat(positions_valides, token);
                             position_count++;
                         } else {
-                            printf("⚠️  Position %d ignorée (le mot fait %d lettres)\n", pos, nb_lettres);
+                            printf("Position %d ignorée (le mot fait %d lettres)\n", pos, nb_lettres);
                         }
                         token = strtok(NULL, " ");
                     }
