@@ -8,28 +8,16 @@
 #include "game_pendu.h"
 
 #define PORT 5000
+#define ERREURS_MAX 6
 
 int main()
 {
-    Game game;
-    int nb_lettres;
+    int socketServeur;
+    struct sockaddr_in adresseServeur;
 
-    int socketServeur, socketClient1, socketClient2;
-    struct sockaddr_in adresseServeur, adresseClient;
-    socklen_t tailleAdresseClient = sizeof(adresseClient);
-
-    char *reponse;
-    char message_recu[255], derniere_lettre;
-    int characteres_lus;
-
+    // Création du serveur (une seule fois)
     socketServeur = socket(AF_INET, SOCK_STREAM, 0);
-
-    if (socketServeur < 0)
-    {
-        perror("socket");
-        exit(-4);
-    }
-    printf("Socket serveur créée.\n");
+    if (socketServeur < 0) { perror("socket"); exit(-4); }
 
     memset(&adresseServeur, 0, sizeof(adresseServeur));
     adresseServeur.sin_family = AF_INET;
@@ -39,147 +27,149 @@ int main()
     int opt = 1;
     setsockopt(socketServeur, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
 
-    if (bind(socketServeur, (struct sockaddr *)&adresseServeur, sizeof(adresseServeur)) < 0)
+    if (bind(socketServeur, (struct sockaddr *)&adresseServeur, sizeof(adresseServeur)) < 0) { perror("bind"); exit(-5); }
+    if (listen(socketServeur, 3) < 0) { perror("listen"); exit(-6); }
+
+    printf("=== Serveur de jeu du Pendu démarré ===\n");
+    printf("Port : %d\n", PORT);
+    printf("En attente de joueurs...\n\n");
+
+    while (1)  // Le serveur reste en marche indéfiniment
     {
-        perror("bind");
-        exit(-5);
-    }
+        Game game;
+        int nb_lettres, nb_fautes = 0;
+        int socketClient1, socketClient2;
+        struct sockaddr_in adresseClient;
+        socklen_t tailleAdresseClient = sizeof(adresseClient);
+        char message_recu[255], derniere_lettre;
+        int characteres_lus;
 
-    if (listen(socketServeur, 3) < 0)
-    {
-        perror("listen");
-        exit(-6);
-    }
+        printf("--- Nouvelle partie ---\n");
+        printf("En attente de connexion de deux clients...\n");
 
-    printf("En attente de connexion de deux clients...\n");
+        // Connexion des clients
+        socketClient1 = accept(socketServeur, (struct sockaddr *)&adresseClient, &tailleAdresseClient);
+        printf("Client 1 connecté (Maître du jeu).\n");
+        socketClient2 = accept(socketServeur, (struct sockaddr *)&adresseClient, &tailleAdresseClient);
+        printf("Client 2 connecté (Devineur).\n");
+        printf("Les deux joueurs sont connectés ! Début de la partie...\n\n");
 
-    /* CONNEXION DU PREMIER CLIENT */
-    socketClient1 = accept(socketServeur, (struct sockaddr *)&adresseClient, &tailleAdresseClient);
-    printf("Client 1 connecté.\n");
+        // Recevoir nombre de lettres
+        characteres_lus = recv(socketClient1, message_recu, sizeof(message_recu) - 1, 0);
+        if (characteres_lus <= 0) { 
+            close(socketClient1); 
+            close(socketClient2); 
+            continue; 
+        }
+        message_recu[characteres_lus] = '\0';
+        nb_lettres = atoi(message_recu);
+        init_word(&game, nb_lettres);
 
-    if (socketClient1 < 0)
-    {
-        perror("accept");
-        exit(-7);
-    }
+        // Ajouter espaces entre les underscores
+        char mot_espace[512];
+        int j = 0;
+        for (int i = 0; i < nb_lettres; i++) {
+            mot_espace[j++] = game.mot_cache[i];
+            if (i < nb_lettres - 1) mot_espace[j++] = ' ';
+        }
+        mot_espace[j] = '\0';
 
-    /* CONNEXION DU DEUXIEME CLIENT */
-    socketClient2 = accept(socketServeur, (struct sockaddr *)&adresseClient, &tailleAdresseClient);
-    printf("Client 2 connecté.\n");
+        // Envoyer état initial aux deux clients
+        char msg[512];
+        snprintf(msg, sizeof(msg), "P:%d:%s", nb_fautes, mot_espace);
+        send(socketClient1, msg, strlen(msg)+1, 0);
+        send(socketClient2, msg, strlen(msg)+1, 0);
 
-    if (socketClient2 < 0)
-    {
-        perror("accept");
-        exit(-7);
-    }
+        fd_set fds;
+        int maxfd = (socketClient1 > socketClient2 ? socketClient1 : socketClient2) + 1;
+        int partie_finie = 0;
 
-    characteres_lus = recv(socketClient1, message_recu, sizeof(message_recu) - 1, 0);
-    if (characteres_lus <= 0)
-    {
-        printf("La connexion a été coupée.\n");
+        while (!partie_finie)
+        {
+            FD_ZERO(&fds);
+            FD_SET(socketClient2, &fds);
+
+            if (select(maxfd, &fds, NULL, NULL, NULL) < 0) { perror("select"); break; }
+
+            // Client 2 propose une lettre
+            if (FD_ISSET(socketClient2, &fds))
+            {
+                int n = recv(socketClient2, message_recu, sizeof(message_recu)-1, 0);
+                if (n <= 0) { printf("Client 2 déconnecté\n"); break; }
+                message_recu[n] = '\0';
+                
+                if (strcmp(message_recu, ".") == 0) break;
+                
+                derniere_lettre = message_recu[0];
+
+                // Transmettre la lettre à Client1
+                snprintf(msg, sizeof(msg), "L:%c", derniere_lettre);
+                send(socketClient1, msg, strlen(msg)+1, 0);
+
+                // Attendre la réponse de Client1
+                n = recv(socketClient1, message_recu, sizeof(message_recu)-1, 0);
+                if (n <= 0) { printf("Client 1 déconnecté\n"); break; }
+                message_recu[n] = '\0';
+
+                char *token = strtok(message_recu, " ");
+                int correct = 0;
+                while (token != NULL && strlen(token) > 0)
+                {
+                    int pos = atoi(token);
+                    if (pos > 0 && pos <= nb_lettres)
+                    {
+                        game.mot_cache[pos-1] = derniere_lettre;
+                        correct = 1;
+                    }
+                    token = strtok(NULL, " ");
+                }
+
+                if (!correct) nb_fautes++;
+
+                // Vérifier victoire
+                int victoire = 1;
+                for (int i = 0; i < nb_lettres; i++)
+                    if (game.mot_cache[i] == '_') { victoire = 0; break; }
+
+                // Reformater avec espaces
+                j = 0;
+                for (int i = 0; i < nb_lettres; i++) {
+                    mot_espace[j++] = game.mot_cache[i];
+                    if (i < nb_lettres - 1) mot_espace[j++] = ' ';
+                }
+                mot_espace[j] = '\0';
+
+                // Envoyer état mis à jour aux deux clients
+                snprintf(msg, sizeof(msg), "P:%d:%s", nb_fautes, mot_espace);
+                send(socketClient1, msg, strlen(msg)+1, 0);
+                send(socketClient2, msg, strlen(msg)+1, 0);
+
+                if (victoire)
+                {
+                    // Envoyer le mot complet au client2
+                    snprintf(msg, sizeof(msg), "V:%s", mot_espace);
+                    send(socketClient2, msg, strlen(msg)+1, 0);
+                    send(socketClient1, "D", 2, 0);
+                    printf("Victoire du devineur ! Le mot était %s\n", game.mot_cache);
+                    partie_finie = 1;
+                }
+                else if (nb_fautes >= ERREURS_MAX)
+                {
+                    // Envoyer le mot complet au client2
+                    snprintf(msg, sizeof(msg), "D:%s", mot_espace);
+                    send(socketClient2, msg, strlen(msg)+1, 0);
+                    send(socketClient1, "V", 2, 0);
+                    printf("Défaite du devineur ! Le mot était %s\n", game.mot_cache);
+                    partie_finie = 1;
+                }
+            }
+        }
+
         close(socketClient1);
         close(socketClient2);
-        close(socketServeur);
-        return 0;
-    }
-    message_recu[characteres_lus] = '\0';
-
-    nb_lettres = atoi(message_recu);
-    if (nb_lettres <= 0)
-    {
-        printf("La connexion a été coupée.\n");
-        close(socketClient1);
-        close(socketClient2);
-        close(socketServeur);
-        return 0;
-    }
-    init_word(&game, nb_lettres);
-    reponse = getMotCache(&game);
-    send(socketClient2, reponse, strlen(reponse) + 1, 0);
-
-    fd_set fds;
-    int maxfd = (socketClient1 > socketClient2 ? socketClient1 : socketClient2) + 1;
-
-    while (1)
-    {
-        FD_ZERO(&fds);
-        FD_SET(socketClient1, &fds);
-        FD_SET(socketClient2, &fds);
-
-        if (select(maxfd, &fds, NULL, NULL, NULL) < 0)
-        {
-            perror("select");
-            break;
-        }
-
-        /* Client 2 a proposé une lettre */
-        if (FD_ISSET(socketClient2, &fds))
-        {
-            int n = recv(socketClient2, message_recu, sizeof(message_recu) - 1, 0);
-            if (n <= 0)
-            {
-                printf("Client 2 déconnecté\n");
-                break;
-            }
-            message_recu[n] = '\0';
-            derniere_lettre = message_recu[0];
-
-            // Envoyer la lettre à Client 1 pour confirmation
-            send(socketClient1, message_recu, n, 0);
-        }
-
-        /* Client 1 a confirmé */
-        if (FD_ISSET(socketClient1, &fds))
-        {
-            int n = recv(socketClient1, message_recu, sizeof(message_recu) - 1, 0);
-            if (n <= 0)
-            {
-                printf("Client 1 déconnecté\n");
-                break;
-            }
-            message_recu[n] = '\0';
-
-            // Mise à jour du mot caché
-            char *token = strtok(message_recu, " ");
-            while (token != NULL)
-            {
-                int pos = atoi(token);
-                if (pos > 0 && pos <= nb_lettres)
-                {
-                    game.mot_cache[pos - 1] = derniere_lettre;
-                }
-                token = strtok(NULL, " ");
-            }
-
-            // Vérifier si toutes les lettres sont trouvées
-            int victoire = 1;
-            for (int i = 0; i < nb_lettres; i++)
-            {
-                if (game.mot_cache[i] == '_')
-                {
-                    victoire = 0;
-                    break;
-                }
-            }
-
-            // Envoyer l'état du mot mis à jour
-            send(socketClient2, game.mot_cache, strlen(game.mot_cache) + 1, 0);
-            send(socketClient1, game.mot_cache, strlen(game.mot_cache) + 1, 0);
-
-            if (victoire)
-            {
-                char msg[] = "Victoire !";
-                send(socketClient1, msg, strlen(msg) + 1, 0);
-                send(socketClient2, msg, strlen(msg) + 1, 0);
-                printf("Victoire ! Le mot était %s\n", game.mot_cache);
-                break; // fin de la partie
-            }
-        }
+        printf("Partie terminée. En attente de nouveaux joueurs...\n\n");
     }
 
-    close(socketClient1);
-    close(socketClient2);
     close(socketServeur);
-
     return 0;
 }

@@ -11,15 +11,16 @@
 
 int main()
 {
-
     char buffer[255];
+    int partie_finie = 0;
+    int nb_fautes = 0;
+    char mot_courant[255] = "";
 
     int socketClient;
     struct sockaddr_in adresse;
     socklen_t tailleAdresse = sizeof(adresse);
 
     socketClient = socket(AF_INET, SOCK_STREAM, 0);
-
     if (socketClient < 0)
     {
         perror("socket");
@@ -40,6 +41,8 @@ int main()
     draw_logo();
 
     printf("Connexion au serveur établie.\n");
+    printf("Vous êtes le Maître du jeu (Client 1).\n");
+    printf("Pensez à un mot et indiquez son nombre de lettres.\n");
     printf("Combien de lettres contient le mot à deviner ?\nNombre de lettres : ");
     fgets(buffer, sizeof(buffer), stdin);
     buffer[strcspn(buffer, "\n")] = 0;
@@ -53,45 +56,70 @@ int main()
 
     do
     {
-
         int n = recv(socketClient, buffer, sizeof(buffer) - 1, 0);
-        if (n > 0)
+        if (n <= 0)
+            break;
+
+        buffer[n] = '\0';
+
+        if (buffer[0] == 'P') // Format: P:nb_fautes:mot_cache
         {
-            buffer[n] = '\0';
-            printf("Lettre proposée : %s\n", buffer);
+            // Parser le message
+            sscanf(buffer, "P:%d:%s", &nb_fautes, mot_courant);
+            
+            printf("\n--- État actuel ---\n");
+            printf("Mot vu par le devineur : %s\n", mot_courant);
+            printf("Nombre de fautes : %d/6\n", nb_fautes);
+            printf("-------------------\n");
         }
-        do
+        else if (buffer[0] == 'L')
         {
-            printf("Cette lettre est-elle dans le mot ? (o/n) : ");
-            fgets(buffer, sizeof(buffer), stdin);
-            buffer[strcspn(buffer, "\n")] = 0;
-        } while (strcmp(buffer, "o") != 0 && strcmp(buffer, "n") != 0);
-
-        if (buffer[0] == 'o')
-        {
-            // Demander les positions
-            char positions[255];
-            printf("À quelles positions apparaît cette lettre ? (séparées par des espaces) : ");
-            fgets(positions, sizeof(positions), stdin);
-            positions[strcspn(positions, "\n")] = 0;
-
-            // Envoyer les positions au serveur
-            if (send(socketClient, positions, strlen(positions) + 1, 0) < 0)
+            printf("\n=================================\n");
+            printf("Lettre proposée par le devineur : %c\n", buffer[2]);
+            printf("=================================\n");
+            
+            char reponse[10];
+            do
             {
-                perror("send");
-                close(socketClient);
-                return 0;
+                printf("Cette lettre est-elle dans VOTRE mot ? (o/n) : ");
+                fgets(reponse, sizeof(reponse), stdin);
+                reponse[strcspn(reponse, "\n")] = 0;
+            } while (strcmp(reponse, "o") != 0 && strcmp(reponse, "n") != 0);
+
+            if (reponse[0] == 'o')
+            {
+                char positions[255];
+                printf("À quelles positions apparaît cette lettre ?\n");
+                printf("(numéros séparés par des espaces, ex: 1 3 5) : ");
+                fgets(positions, sizeof(positions), stdin);
+                positions[strcspn(positions, "\n")] = 0;
+                send(socketClient, positions, strlen(positions) + 1, 0);
+            }
+            else
+            {
+                char vide[] = "";
+                send(socketClient, vide, 1, 0);
             }
         }
-        else
+        else if (buffer[0] == 'V')
         {
-            // Si la lettre n'est pas dans le mot, envoyer une chaîne vide
-            char vide[] = "";
-            send(socketClient, vide, strlen(vide) + 1, 0);
+            printf("\n=================================\n");
+            printf("✅ VICTOIRE ! Le devineur n'a pas trouvé votre mot.\n");
+            printf("=================================\n");
+            partie_finie = 1;
+        }
+        else if (buffer[0] == 'D')
+        {
+            printf("\n=================================\n");
+            printf("❌ DÉFAITE ! Le devineur a trouvé votre mot.\n");
+            printf("=================================\n");
+            partie_finie = 1;
         }
 
-    } while (buffer[0] != '.');
+    } while (!partie_finie);
 
     close(socketClient);
+    
+    printf("\nPartie terminée. Merci d'avoir joué !\n");
     return 0;
 }
